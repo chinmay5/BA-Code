@@ -1,5 +1,6 @@
 #DMC-Attempt
-setwd("E:\\TUM-Sem-1\\Business-Analytics")
+getwd()
+setwd("/home/chinmay/Desktop/TUM/Sem-1/Business Analytics");
 train_data <- read.csv("DMC_training_data.csv")
 test_data <- read.csv("DMC_test_data.csv")
 str(train_data)
@@ -22,15 +23,27 @@ colSums(is.na(test_data))
 #Convert the format of data
 timestamp_format = "%Y-%m-%d %H:%M:%S"
 date_format = "%Y-%m-%d"
+time_format = "%H"
+bin_points <- c(3,6,9,12,15,18,21,24)
 train_data$TimeStamp <- strftime(train_data$TimeStamp,timestamp_format)
+Train_Time_of_Day <- strtoi(strftime(train_data$TimeStamp, time_format),10L)
+train_data$Train_Time_of_Day <-cut(Train_Time_of_Day,bin_points,labels=1:7)
+
+#table(train_data$Train_Time_of_Day)
+
 train_data$LAST_MODIFIED <- as.Date(train_data$LAST_MODIFIED,date_format)
 train_data$VALIDATION_LAST_MODIFIED <- as.Date(train_data$VALIDATION_LAST_MODIFIED,date_format)
-
 test_data$TimeStamp <- strftime(test_data$TimeStamp,timestamp_format)
+Test_Time_of_Day = strtoi(strftime(test_data$TimeStamp, time_format),10L)
+test_data$Test_Time_of_day <- cut(Test_Time_of_Day,bin_points,labels=1:7)
+
+#table(test_data$Test_Time_of_day)
+
 test_data$LAST_MODIFIED <- as.Date(test_data$LAST_MODIFIED,date_format)
 test_data$VALIDATION_LAST_MODIFIED <- as.Date(test_data$VALIDATION_LAST_MODIFIED,date_format)
 
 
+table(Train_Time_of_Day)
 #Since the houehold count field is NA all through, we drop it
 train_data = subset(train_data,select = -(HOUSEHOLD_COUNT))
 #Let us touch the test_data later
@@ -44,7 +57,7 @@ table(train_data$ADDR_STREET)
 #Look at preferred partner
 table(train_data$PREFERRED_PARTNER)
 table(test_data$PREFERRED_PARTNER)
-train_data$PREFERRED_PARTNER <- NULL #All values are Yes only, no use
+#train_data$PREFERRED_PARTNER <- NULL #All values are Yes only, no use
 train_data = subset(train_data,select = -(PREFERRED_PARTNER))
 
 #Unify the ADDR_REGION column
@@ -72,10 +85,7 @@ test_data$weekday = weekdays(as.Date(test_data$TimeStamp,date_format))
 
 #Checking if some numeric variables should be converted to factors
 #Status is our dependent variable
-unique(test_data$status)
-train_data$status <- factor(train_data$status,labels=c("Yes","No"))
 
-table(train_data$status)
 #-------Doing same for port number check---------
 unique(train_data$portNumber)
 train_data$portNumber <- factor(train_data$portNumber)
@@ -87,7 +97,7 @@ train_data$TYP1_COUNT <- factor(train_data$TYP1_COUNT)
 test_data$TYP1_COUNT <- factor(test_data$TYP1_COUNT)
 
 # Multicollinearity
-install.packages('caret', dependencies = TRUE)
+install.packages('caret')
 install.packages("stringi")
 library(caret)
 numeric_columns = c("EI65_GEO_ID","ADDR_LATITUDE","ADDR_LONGITUDE","ADDR_POSTALCODE")
@@ -129,7 +139,7 @@ train_data_check <- ovun.sample(status ~ ., data=train_data, method="over",  na.
 table(train_data_check$status)
 
 # 2 x 5-fold cross validation
-fitCtrl <- trainControl(method="repeatedcv", number=5, repeats=2)
+fitCtrl <- trainControl(method="repeatedcv", number=2, repeats=1)
 
 # training a decision tree model using the metric "Accuracy"
 model = train(formula_with_most_important_attributes, data=train_data, method="J48", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
