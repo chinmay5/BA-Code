@@ -177,18 +177,33 @@ fitCtrl <- trainControl(method="repeatedcv", number=2, repeats=1)
 
 # training a decision tree model using the metric "Accuracy"
 #We are going to work on a subset of the data here, only the first week
-train_data <- train_data[train_data$week == '14',] #I spent hours on missing the comma :P
+temp_data <- train_data[train_data$week == '15',] #I spent hours on missing the comma :P
 
 
-model = train(formula_with_most_important_attributes, data=train_data, method="J48", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
-
-
+model = train(formula_with_most_important_attributes, data=temp_data, method="J48", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
 # Show results and metrics
 model
 model$results
 
+#Trying with Random Forest now
+#require(randomForest)
+rf_model <- train(formula_with_most_important_attributes, data=temp_data, method="rf", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
+# Show results and metrics
+rf_model
+rf_model$results
+#Now K-nearest neighbour
+#install.packages("ada")
+knn_model <- train(formula_with_most_important_attributes, data=temp_data, method="knn", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
+# Show results and metrics
+knn_model
+knn_model$results
+#Logistic Regression
+logi_model <- train(formula_with_most_important_attributes,data = temp_data,method = "glm",trControl = fitCtrl,metric= "Accuracy",na.action = na.omit)
 # Show decision tree
-model$finalModel
-
+#model$finalModel
+#rf_model$finalModel
+#ada_model$finalModel
 # Show confusion matrix (in percent)
 confusionMatrix(model)
+confusionMatrix(rf_model)
+confusionMatrix(knn_model)
