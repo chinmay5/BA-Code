@@ -230,17 +230,29 @@ confusionMatrix(temp_test_data$status,temp_test_data$pred_logi)
 confusionMatrix(temp_test_data$status,temp_test_data$pred_rf)
 
 #Let us have the predicitons as probabilities for the terms
-temp_test_data$pred_knn_prob <- predict(object = knn_model,temp_test_data,type='prob')
-temp_test_data$pred_rf_prob <- predict(object = rf_model,temp_test_data,type='prob')
-temp_test_data$pred_logi_prob <- predict(object = logi_model,temp_test_data,type='prob')
-temp_test_data$pred_dt_prob <- predict(object = model_dt,temp_test_data,type='prob')
+temp_test_data$pred_knn_prob <- predict(object = knn_model,temp_test_data,type='prob')$Yes
+temp_test_data$pred_rf_prob <- predict(object = rf_model,temp_test_data,type='prob')$Yes
+temp_test_data$pred_logi_prob <- predict(object = logi_model,temp_test_data,type='prob')$Yes
+temp_test_data$pred_dt_prob <- predict(object = model_dt,temp_test_data,type='prob')$Yes
 
 #Now getting the predictions on the data set directly using weighted average
-temp_test_data$pred_status_avg <- (temp_test_data$pred_knn_prob$Yes + temp_test_data$pred_dt_prob$Yes + temp_test_data$pred_logi_prob$Yes + temp_test_data$pred_rf_prob$Yes)/4
-temp_test_data$pred_status_avg <- as.factor(ifelse(temp_test_data$pred_status_avg > 0.5,'Yes','No'))
+#temp_test_data$pred_status_avg <- (temp_test_data$pred_knn_prob$Yes + temp_test_data$pred_dt_prob$Yes + temp_test_data$pred_logi_prob$Yes + temp_test_data$pred_rf_prob$Yes)/4
+#temp_test_data$pred_status_avg <- as.factor(ifelse(temp_test_data$pred_status_avg > 0.5,'Yes','No'))
 #Let us check accuracy
-levels(temp_test_data$pred_status_avg)
-levels(temp_test_data$status)
+#levels(temp_test_data$pred_status_avg)
+#levels(temp_test_data$status)
+#count_corr <- sum(temp_test_data$status == temp_test_data$pred_status_avg)
+#count_corr
+#count_total <- nrow(temp_test_data)
+#acc <- (count_corr/count_total)*100
+#acc
+
+#Predictors for top layer models 
+install.packages("gbm")
+library("gbm")
+predictors_top<-c('pred_knn_prob','pred_rf_prob','pred_logi_prob','pred_dt_prob')
+model_glm<-train(temp_test_data[,predictors_top],temp_test_data[,'status'],method='glm',trControl=fitCtrl,tuneLength=3,na.action = na.omit)
+temp_test_data$pred_status_avg<-predict(model_glm,temp_test_data)
 count_corr <- sum(temp_test_data$status == temp_test_data$pred_status_avg)
 count_corr
 count_total <- nrow(temp_test_data)
