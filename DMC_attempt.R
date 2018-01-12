@@ -33,6 +33,8 @@ Train_Time_of_Day <- strtoi(strftime(train_data$TimeStamp, time_format),10L)
 table(Train_Time_of_Day,useNA = "always")
 train_data$Train_Time_of_Day <-cut(Train_Time_of_Day,bin_points,labels=1:8)
 train_data$week <- strftime(train_data$TimeStamp,week_format)
+#binning caused some issues but resolved it using:-
+#https://stackoverflow.com/questions/11963508/generate-bins-from-a-data-frame
 
 #Try the K-means clustering
 data_point_train <- cbind(train_data$ADDR_LATITUDE,train_data$ADDR_LONGITUDE)
@@ -60,7 +62,7 @@ test_data$TimeStamp <- strftime(test_data$TimeStamp,timestamp_format)
 Test_Time_of_Day = strtoi(strftime(test_data$TimeStamp, time_format),10L)
 table(Test_Time_of_Day)
 test_data$Test_Time_of_day <- cut(Test_Time_of_Day,bin_points,labels=1:8)
-colSums(is.na(test_data))
+#colSums(is.na(test_data))
 test_data$week <- strftime(test_data$TimeStamp,week_format)
 data_point_test <- cbind(test_data$ADDR_LATITUDE,test_data$ADDR_LONGITUDE)
 #table(test_data$Test_Time_of_day)
@@ -178,11 +180,16 @@ table(train_data_check$status)
 # 2 x 5-fold cross validation
 fitCtrl <- trainControl(method="repeatedcv", number=2, repeats=1)
 
+#Partitioning....Here we are taking 75% of total values contaiing status
+#index <- createDataPartition(train_data$status, p=0.75, list=FALSE)
+
+
 # training a decision tree model using the metric "Accuracy"
-#We are going to work on a subset of the data here, only the first week
-temp_data <- train_data[train_data$week == '15',] #I spent hours on missing the comma :P
+#We are going to work on a subset of the data here, only the two week
+temp_data <- train_data[(train_data$week %in% c('14','16')),] #I spent hours on missing the comma :P
 
-
+temp_test_data <-train_data[(train_data$week %in% c('17')),]
+#table(temp_test_data$week)
 model_dt <- train(formula_with_most_important_attributes, data=temp_data, method="J48", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
 # Show results and metrics
 model_dt
@@ -190,7 +197,7 @@ model_dt$results
 
 #Trying with Random Forest now
 #require(randomForest)
-rf_model <- train(formula_with_most_important_attributes, data=temp_data, method="rf", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
+rf_model <- train(formula_with_most_important_attributes, data=temp_data, method="rf", trControl=fitCtrl, metric="Accuracy",na.action=na.omit)
 # Show results and metrics
 rf_model
 rf_model$results
@@ -212,20 +219,30 @@ confusionMatrix(rf_model)
 confusionMatrix(knn_model)
 confusionMatrix(logi_model)
 
-# Example of Stacking algorithms
-# create submodels
-install.packages("caretEnsemble")
-library(caretEnsemble)
-control <- trainControl(method="repeatedcv", number=10, repeats=3, savePredictions=TRUE, classProbs=TRUE)
-algorithmList <- c('glm', 'knn', 'rf','J48')
+#Let us try the stacking
+temp_test_data$pred_knn <- predict(object = knn_model,temp_test_data)
+temp_test_data$pred_rf <- predict(object = rf_model,temp_test_data)
+temp_test_data$pred_logi <- predict(object = logi_model,temp_test_data)
+temp_test_data$pred_dt <- predict(object = model_dt,temp_test_data)
+confusionMatrix(temp_test_data$status,temp_test_data$pred_knn)
+confusionMatrix(temp_test_data$status,temp_test_data$pred_dt)
+confusionMatrix(temp_test_data$status,temp_test_data$pred_logi)
+confusionMatrix(temp_test_data$status,temp_test_data$pred_rf)
 
-colSums(is.na(train_data))
+#Let us have the predicitons as probabilities for the terms
+temp_test_data$pred_knn_prob <- predict(object = knn_model,temp_test_data,type='prob')
+temp_test_data$pred_rf_prob <- predict(object = rf_model,temp_test_data,type='prob')
+temp_test_data$pred_logi_prob <- predict(object = logi_model,temp_test_data,type='prob')
+temp_test_data$pred_dt_prob <- predict(object = model_dt,temp_test_data,type='prob')
 
-models <- caretList(status~., data <- temp_data, trControl=control, methodList=algorithmList)
-results <- resamples(models)
-summary(results)
-
-
-stackControl <- trainControl(method="repeatedcv", number=10, repeats=3, savePredictions=TRUE, classProbs=TRUE)
-stack.glm <- caretStack(models, method="glm", metric="Accuracy", trControl=stackControl)
-print(stack.glm)
+#Now getting the predictions on the data set directly using weighted average
+temp_test_data$pred_status_avg <- (temp_test_data$pred_knn_prob$Yes + temp_test_data$pred_dt_prob$Yes + temp_test_data$pred_logi_prob$Yes + temp_test_data$pred_rf_prob$Yes)/4
+temp_test_data$pred_status_avg <- as.factor(ifelse(temp_test_data$pred_status_avg > 0.5,'Yes','No'))
+#Let us check accuracy
+levels(temp_test_data$pred_status_avg)
+levels(temp_test_data$status)
+count_corr <- sum(temp_test_data$status == temp_test_data$pred_status_avg)
+count_corr
+count_total <- nrow(temp_test_data)
+acc <- (count_corr/count_total)*100
+acc
