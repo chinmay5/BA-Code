@@ -1,4 +1,5 @@
 set.seed(42)
+rm(list=ls())
 #DMC-Attempt
 getwd()
 setwd("/home/chinmay/Desktop/TUM/Sem-1/Business Analytics");
@@ -26,12 +27,12 @@ timestamp_format <- "%Y-%m-%d %H:%M:%S"
 date_format <- "%Y-%m-%d"
 week_format <- "%W"
 time_format = "%H"
-bin_points <- c(3,6,9,12,15,18,21,24)
+bin_points <- c(-Inf,3,6,9,12,15,18,21,Inf)
 train_data$TimeStamp <- strftime(train_data$TimeStamp,timestamp_format)
 Train_Time_of_Day <- strtoi(strftime(train_data$TimeStamp, time_format),10L)
-train_data$Train_Time_of_Day <-cut(Train_Time_of_Day,bin_points,labels=1:7)
+table(Train_Time_of_Day,useNA = "always")
+train_data$Train_Time_of_Day <-cut(Train_Time_of_Day,bin_points,labels=1:8)
 train_data$week <- strftime(train_data$TimeStamp,week_format)
-#table(train_data$week)
 
 #Try the K-means clustering
 data_point_train <- cbind(train_data$ADDR_LATITUDE,train_data$ADDR_LONGITUDE)
@@ -57,7 +58,9 @@ train_data$LAST_MODIFIED <- as.Date(train_data$LAST_MODIFIED,date_format)
 train_data$VALIDATION_LAST_MODIFIED <- as.Date(train_data$VALIDATION_LAST_MODIFIED,date_format)
 test_data$TimeStamp <- strftime(test_data$TimeStamp,timestamp_format)
 Test_Time_of_Day = strtoi(strftime(test_data$TimeStamp, time_format),10L)
-test_data$Test_Time_of_day <- cut(Test_Time_of_Day,bin_points,labels=1:7)
+table(Test_Time_of_Day)
+test_data$Test_Time_of_day <- cut(Test_Time_of_Day,bin_points,labels=1:8)
+colSums(is.na(test_data))
 test_data$week <- strftime(test_data$TimeStamp,week_format)
 data_point_test <- cbind(test_data$ADDR_LATITUDE,test_data$ADDR_LONGITUDE)
 #table(test_data$Test_Time_of_day)
@@ -180,10 +183,10 @@ fitCtrl <- trainControl(method="repeatedcv", number=2, repeats=1)
 temp_data <- train_data[train_data$week == '15',] #I spent hours on missing the comma :P
 
 
-model = train(formula_with_most_important_attributes, data=temp_data, method="J48", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
+model_dt <- train(formula_with_most_important_attributes, data=temp_data, method="J48", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
 # Show results and metrics
-model
-model$results
+model_dt
+model_dt$results
 
 #Trying with Random Forest now
 #require(randomForest)
@@ -204,6 +207,25 @@ logi_model <- train(formula_with_most_important_attributes,data = temp_data,meth
 #rf_model$finalModel
 #ada_model$finalModel
 # Show confusion matrix (in percent)
-confusionMatrix(model)
+confusionMatrix(model_dt)
 confusionMatrix(rf_model)
 confusionMatrix(knn_model)
+confusionMatrix(logi_model)
+
+# Example of Stacking algorithms
+# create submodels
+install.packages("caretEnsemble")
+library(caretEnsemble)
+control <- trainControl(method="repeatedcv", number=10, repeats=3, savePredictions=TRUE, classProbs=TRUE)
+algorithmList <- c('glm', 'knn', 'rf','J48')
+
+colSums(is.na(train_data))
+
+models <- caretList(status~., data <- temp_data, trControl=control, methodList=algorithmList)
+results <- resamples(models)
+summary(results)
+
+
+stackControl <- trainControl(method="repeatedcv", number=10, repeats=3, savePredictions=TRUE, classProbs=TRUE)
+stack.glm <- caretStack(models, method="glm", metric="Accuracy", trControl=stackControl)
+print(stack.glm)
