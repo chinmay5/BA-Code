@@ -1,8 +1,9 @@
 set.seed(42)
 rm(list=ls())
+
 #DMC-Attempt
 getwd()
-setwd("/home/chinmay/Desktop/TUM/Sem-1/Business Analytics");
+setwd("~/Desktop/M.S./Business Analytics/DMC/");
 train_data <- read.csv("DMC_training_data.csv")
 test_data <- read.csv("DMC_test_data.csv")
 str(train_data)
@@ -31,7 +32,7 @@ bin_points <- c(-Inf,3,6,9,12,15,18,21,Inf)
 train_data$TimeStamp <- strftime(train_data$TimeStamp,timestamp_format)
 Train_Time_of_Day <- strtoi(strftime(train_data$TimeStamp, time_format),10L)
 table(Train_Time_of_Day,useNA = "always")
-train_data$Train_Time_of_Day <-cut(Train_Time_of_Day,bin_points,labels=1:8)
+train_data$time_of_Day <-cut(Train_Time_of_Day,bin_points,labels=1:8)
 train_data$week <- strftime(train_data$TimeStamp,week_format)
 #binning caused some issues but resolved it using:-
 #https://stackoverflow.com/questions/11963508/generate-bins-from-a-data-frame
@@ -61,7 +62,7 @@ train_data$VALIDATION_LAST_MODIFIED <- as.Date(train_data$VALIDATION_LAST_MODIFI
 test_data$TimeStamp <- strftime(test_data$TimeStamp,timestamp_format)
 Test_Time_of_Day = strtoi(strftime(test_data$TimeStamp, time_format),10L)
 table(Test_Time_of_Day)
-test_data$Test_Time_of_day <- cut(Test_Time_of_Day,bin_points,labels=1:8)
+test_data$time_of_Day <- cut(Test_Time_of_Day,bin_points,labels=1:8)
 #colSums(is.na(test_data))
 test_data$week <- strftime(test_data$TimeStamp,week_format)
 data_point_test <- cbind(test_data$ADDR_LATITUDE,test_data$ADDR_LONGITUDE)
@@ -102,6 +103,12 @@ train_data$ADDR_MUNICIPALITY <- droplevels(train_data$ADDR_MUNICIPALITY)
 levels(train_data$FREECHARGE) = c(levels(train_data$FREECHARGE),"NO")
 train_data$FREECHARGE[train_data$FREECHARGE == ""] = "NO"
 train_data$FREECHARGE <- droplevels(train_data$FREECHARGE)
+
+#Same for Test_Data
+levels(test_data$FREECHARGE) = c(levels(test_data$FREECHARGE),"NO")
+test_data$FREECHARGE[test_data$FREECHARGE == ""] = "NO"
+test_data$FREECHARGE <- droplevels(test_data$FREECHARGE)
+
 #table(train_data$FREECHARGE,useNA = "ifany")
 
 table(train_data$IS_LSC_VALIDATED)
@@ -135,7 +142,8 @@ numeric_columns_correlation
 
 #Better to remove the ID attribute from the data
 train_data <- subset(train_data,select = -(ID))
-test_data <- subset(test_data,select = -(ID))
+#We will not remove the id attribute for test_data
+#test_data <- subset(test_data,select = -(ID))
 
 #Status is an integer number
 #class(train_data$status)
@@ -152,9 +160,9 @@ library(FSelector)
 # It makes sense to remove the timestamp data now because we have used it in Time_of_Day and weekday
 # Similarly the week information is for making the training faster and shoudl be ignored
 #
-weights_info_gain = information.gain(status ~ EI65_GEO_ID + portNumber + TYP1_COUNT + FREECHARGE + LAST_MODIFIED + VALIDATION_LAST_MODIFIED + IS_LSC_VALIDATED + Train_Time_of_Day + region + weekday, data=train_data)
+weights_info_gain = information.gain(status ~ EI65_GEO_ID + portNumber + TYP1_COUNT + FREECHARGE + LAST_MODIFIED + VALIDATION_LAST_MODIFIED + IS_LSC_VALIDATED + time_of_Day + region + weekday, data=train_data)
 weights_info_gain
-weights_gain_ratio = gain.ratio(status ~ EI65_GEO_ID + portNumber + TYP1_COUNT + FREECHARGE + LAST_MODIFIED + VALIDATION_LAST_MODIFIED + IS_LSC_VALIDATED + Train_Time_of_Day + region + weekday, data=train_data)
+weights_gain_ratio = gain.ratio(status ~ EI65_GEO_ID + portNumber + TYP1_COUNT + FREECHARGE + LAST_MODIFIED + VALIDATION_LAST_MODIFIED + IS_LSC_VALIDATED + time_of_Day + region + weekday, data=train_data)
 weights_gain_ratio
 
 # Select the most important attributes based on Gain Ratio
@@ -184,12 +192,10 @@ fitCtrl <- trainControl(method="repeatedcv", number=2, repeats=1)
 #index <- createDataPartition(train_data$status, p=0.75, list=FALSE)
 
 
-# training a decision tree model using the metric "Accuracy"
+# training a decision tree model using thfe metric "Accuracy"
 #We are going to work on a subset of the data here, only the two week
 temp_data <- train_data[(train_data$week %in% c('14','16')),] #I spent hours on missing the comma :P
 
-temp_test_data <-train_data[(train_data$week %in% c('17')),]
-#table(temp_test_data$week)
 model_dt <- train(formula_with_most_important_attributes, data=temp_data, method="J48", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
 # Show results and metrics
 model_dt
@@ -220,30 +226,37 @@ confusionMatrix(knn_model)
 confusionMatrix(logi_model)
 
 #Let us try the stacking
-temp_test_data$pred_knn <- predict(object = knn_model,temp_test_data)
-temp_test_data$pred_rf <- predict(object = rf_model,temp_test_data)
-temp_test_data$pred_logi <- predict(object = logi_model,temp_test_data)
-temp_test_data$pred_dt <- predict(object = model_dt,temp_test_data)
-confusionMatrix(temp_test_data$status,temp_test_data$pred_knn)
-confusionMatrix(temp_test_data$status,temp_test_data$pred_dt)
-confusionMatrix(temp_test_data$status,temp_test_data$pred_logi)
-confusionMatrix(temp_test_data$status,temp_test_data$pred_rf)
+train_data$pred_knn <- predict(object = knn_model,train_data)
+train_data$pred_rf <- predict(object = rf_model,train_data)
+train_data$pred_logi <- predict(object = logi_model,train_data)
+train_data$pred_dt <- predict(object = model_dt,train_data)
+confusionMatrix(train_data$status,train_data$pred_knn)
+confusionMatrix(train_data$status,train_data$pred_dt)
+confusionMatrix(train_data$status,train_data$pred_logi)
+confusionMatrix(train_data$status,train_data$pred_rf)
+
+#Performing the same on test data
+
+test_data$pred_knn <- predict(object = knn_model,test_data)
+test_data$pred_rf <- predict(object = rf_model,test_data)
+test_data$pred_logi <- predict(object = logi_model,test_data)
+test_data$pred_dt <- predict(object = model_dt,test_data)
 
 #Let us have the predicitons as probabilities for the terms
-temp_test_data$pred_knn_prob <- predict(object = knn_model,temp_test_data,type='prob')$Yes
-temp_test_data$pred_rf_prob <- predict(object = rf_model,temp_test_data,type='prob')$Yes
-temp_test_data$pred_logi_prob <- predict(object = logi_model,temp_test_data,type='prob')$Yes
-temp_test_data$pred_dt_prob <- predict(object = model_dt,temp_test_data,type='prob')$Yes
+train_data$pred_knn_prob <- predict(object = knn_model,train_data,type='prob')$Yes
+train_data$pred_rf_prob <- predict(object = rf_model,train_data,type='prob')$Yes
+train_data$pred_logi_prob <- predict(object = logi_model,train_data,type='prob')$Yes
+train_data$pred_dt_prob <- predict(object = model_dt,train_data,type='prob')$Yes
 
 #Now getting the predictions on the data set directly using weighted average
-#temp_test_data$pred_status_avg <- (temp_test_data$pred_knn_prob$Yes + temp_test_data$pred_dt_prob$Yes + temp_test_data$pred_logi_prob$Yes + temp_test_data$pred_rf_prob$Yes)/4
-#temp_test_data$pred_status_avg <- as.factor(ifelse(temp_test_data$pred_status_avg > 0.5,'Yes','No'))
+#train_data$pred_status_avg <- (train_data$pred_knn_prob$Yes + train_data$pred_dt_prob$Yes + train_data$pred_logi_prob$Yes + train_data$pred_rf_prob$Yes)/4
+#train_data$pred_status_avg <- as.factor(ifelse(train_data$pred_status_avg > 0.5,'Yes','No'))
 #Let us check accuracy
-#levels(temp_test_data$pred_status_avg)
-#levels(temp_test_data$status)
-#count_corr <- sum(temp_test_data$status == temp_test_data$pred_status_avg)
+#levels(train_data$pred_status_avg)
+#levels(train_data$status)
+#count_corr <- sum(train_data$status == train_data$pred_status_avg)
 #count_corr
-#count_total <- nrow(temp_test_data)
+#count_total <- nrow(train_data)
 #acc <- (count_corr/count_total)*100
 #acc
 
@@ -251,10 +264,30 @@ temp_test_data$pred_dt_prob <- predict(object = model_dt,temp_test_data,type='pr
 install.packages("gbm")
 library("gbm")
 predictors_top<-c('pred_knn_prob','pred_rf_prob','pred_logi_prob','pred_dt_prob')
-model_glm<-train(temp_test_data[,predictors_top],temp_test_data[,'status'],method='glm',trControl=fitCtrl,tuneLength=3,na.action = na.omit)
-temp_test_data$pred_status_avg<-predict(model_glm,temp_test_data)
-count_corr <- sum(temp_test_data$status == temp_test_data$pred_status_avg)
+model_glm<-train(train_data[,predictors_top],train_data[,'status'],method='glm',trControl=fitCtrl,tuneLength=3,na.action = na.omit)
+train_data$pred_status_avg<-predict(model_glm,train_data)
+count_corr <- sum(train_data$status == train_data$pred_status_avg)
 count_corr
-count_total <- nrow(temp_test_data)
+count_total <- nrow(train_data)
 acc <- (count_corr/count_total)*100
 acc
+
+
+######################################################
+# 5. Predict Classes in Test Data
+test_data$pred_knn_prob <- predict(object = knn_model,newdata = test_data,type='prob')$Yes
+test_data$pred_rf_prob <- predict(object = rf_model,test_data,type='prob')$Yes
+test_data$pred_logi_prob <- predict(object = logi_model,test_data,type='prob')$Yes
+test_data$pred_dt_prob <- predict(object = model_dt,test_data,type='prob')$Yes
+prediction_classes = predict.train(object=model_glm, newdata=test_data, na.action=na.pass)
+#Performing consistency transformation
+levels(prediction_classes)[1] <- 0
+levels(prediction_classes)[2] <- 1
+predictions = data.frame(id=test_data$ID, prediction = as.numeric(levels(prediction_classes))[prediction_classes]
+predictions
+
+
+######################################################
+# 6. Export the Predictions
+write.csv(predictions, file="predictions_faultless_saradine.csv", row.names=FALSE)
+
