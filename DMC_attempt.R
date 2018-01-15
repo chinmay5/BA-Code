@@ -3,7 +3,7 @@ rm(list=ls())
 
 #DMC-Attempt
 getwd()
-setwd("~/Desktop/M.S./Business Analytics/DMC/");
+setwd("/home/chinmay/Desktop/TUM/Sem-1/Business Analytics");
 train_data <- read.csv("DMC_training_data.csv")
 test_data <- read.csv("DMC_test_data.csv")
 str(train_data)
@@ -30,7 +30,12 @@ week_format <- "%W"
 time_format = "%H"
 bin_points <- c(-Inf,3,6,9,12,15,18,21,Inf)
 train_data$TimeStamp <- strftime(train_data$TimeStamp,timestamp_format)
-Train_Time_of_Day <- strtoi(strftime(train_data$TimeStamp, time_format),10L)
+#Rounding off properly
+install.packages("lubridate")
+library("lubridate")
+extracted_time <- ymd_hms(train_data$TimeStamp)
+rounded_time <- round_date(extracted_time,unit = "hour")
+Train_Time_of_Day <- hour(rounded_time)
 table(Train_Time_of_Day,useNA = "always")
 train_data$time_of_Day <-cut(Train_Time_of_Day,bin_points,labels=1:8)
 train_data$week <- strftime(train_data$TimeStamp,week_format)
@@ -60,8 +65,12 @@ train_data$region <- predict(cl1,data_point_train)
 train_data$LAST_MODIFIED <- as.Date(train_data$LAST_MODIFIED,date_format)
 train_data$VALIDATION_LAST_MODIFIED <- as.Date(train_data$VALIDATION_LAST_MODIFIED,date_format)
 test_data$TimeStamp <- strftime(test_data$TimeStamp,timestamp_format)
-Test_Time_of_Day = strtoi(strftime(test_data$TimeStamp, time_format),10L)
-table(Test_Time_of_Day)
+
+extracted_time <- ymd_hms(test_data$TimeStamp)
+rounded_time <- round_date(extracted_time,unit = "hour")
+Test_Time_of_Day <- hour(rounded_time)
+table(Test_Time_of_Day,useNA = "always")
+
 test_data$time_of_Day <- cut(Test_Time_of_Day,bin_points,labels=1:8)
 #colSums(is.na(test_data))
 test_data$week <- strftime(test_data$TimeStamp,week_format)
@@ -283,7 +292,7 @@ prediction_classes = predict.train(object=model_glm, newdata=test_data, na.actio
 #Performing consistency transformation
 levels(prediction_classes)[1] <- 0
 levels(prediction_classes)[2] <- 1
-predictions = data.frame(id=test_data$ID, prediction = as.numeric(levels(prediction_classes))[prediction_classes]
+predictions = data.frame(id=test_data$ID, prediction = as.numeric(levels(prediction_classes))[prediction_classes])
 predictions
 
 
