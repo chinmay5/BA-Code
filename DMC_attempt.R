@@ -3,7 +3,7 @@ rm(list=ls())
 
 #DMC-Attempt
 getwd()
-setwd("/home/chinmay/Desktop/TUM/Sem-1/Business Analytics");
+setwd("~/Desktop/M.S./Business Analytics/DMC/");
 train_data <- read.csv("DMC_training_data.csv")
 test_data <- read.csv("DMC_test_data.csv")
 str(train_data)
@@ -195,7 +195,7 @@ train_data_check <- ovun.sample(status ~ ., data=train_data, method="over",  na.
 table(train_data_check$status)
 
 # 2 x 5-fold cross validation
-fitCtrl <- trainControl(method="repeatedcv", number=2, repeats=1)
+fitCtrl <- trainControl(method="repeatedcv", number=2, repeats=1,classProbs =  TRUE)
 
 #Partitioning....Here we are taking 75% of total values contaiing status
 #index <- createDataPartition(train_data$status, p=0.75, list=FALSE)
@@ -203,7 +203,7 @@ fitCtrl <- trainControl(method="repeatedcv", number=2, repeats=1)
 
 # training a decision tree model using thfe metric "Accuracy"
 #We are going to work on a subset of the data here, only the two week
-temp_data <- train_data[(train_data$week %in% c('14','16')),] #I spent hours on missing the comma :P
+temp_data <- train_data#[(train_data$week %in% c('14','16')),] #I spent hours on missing the comma :P
 
 model_dt <- train(formula_with_most_important_attributes, data=temp_data, method="J48", trControl=fitCtrl, metric="Accuracy",  na.action=na.omit)
 # Show results and metrics
@@ -224,6 +224,10 @@ knn_model
 knn_model$results
 #Logistic Regression
 logi_model <- train(formula_with_most_important_attributes,data = temp_data,method = "glm",trControl = fitCtrl,metric= "Accuracy",na.action = na.omit)
+
+
+svm_model <- train(formula_with_most_important_attributes,data = temp_data,method = "svmRadial",trControl = fitCtrl,metric= "Accuracy",na.action = na.omit)
+svm_model$results
 # Show decision tree
 #model$finalModel
 #rf_model$finalModel
@@ -233,16 +237,21 @@ confusionMatrix(model_dt)
 confusionMatrix(rf_model)
 confusionMatrix(knn_model)
 confusionMatrix(logi_model)
+confusionMatrix(svm_model)
 
 #Let us try the stacking
 train_data$pred_knn <- predict(object = knn_model,train_data)
 train_data$pred_rf <- predict(object = rf_model,train_data)
 train_data$pred_logi <- predict(object = logi_model,train_data)
 train_data$pred_dt <- predict(object = model_dt,train_data)
+train_data$pred_svm <- predict(object = svm_model,train_data)
+#train_data$pred_svm
 confusionMatrix(train_data$status,train_data$pred_knn)
 confusionMatrix(train_data$status,train_data$pred_dt)
 confusionMatrix(train_data$status,train_data$pred_logi)
 confusionMatrix(train_data$status,train_data$pred_rf)
+confusionMatrix(train_data$status,train_data$pred_svm)
+
 
 #Performing the same on test data
 
@@ -250,12 +259,19 @@ test_data$pred_knn <- predict(object = knn_model,test_data)
 test_data$pred_rf <- predict(object = rf_model,test_data)
 test_data$pred_logi <- predict(object = logi_model,test_data)
 test_data$pred_dt <- predict(object = model_dt,test_data)
+test_data$pred_svm <- predict(object = svm_model,test_data)
+
+
 
 #Let us have the predicitons as probabilities for the terms
 train_data$pred_knn_prob <- predict(object = knn_model,train_data,type='prob')$Yes
 train_data$pred_rf_prob <- predict(object = rf_model,train_data,type='prob')$Yes
 train_data$pred_logi_prob <- predict(object = logi_model,train_data,type='prob')$Yes
 train_data$pred_dt_prob <- predict(object = model_dt,train_data,type='prob')$Yes
+#temp_data_2 <- predict(object = svm_model,newdata = train_data,type='prob')
+train_data$pred_svm_prob <- predict(object = svm_model,newdata = train_data,type='prob')$Yes
+#colSums(is.na(train_data))
+#svm_model
 
 #Now getting the predictions on the data set directly using weighted average
 #train_data$pred_status_avg <- (train_data$pred_knn_prob$Yes + train_data$pred_dt_prob$Yes + train_data$pred_logi_prob$Yes + train_data$pred_rf_prob$Yes)/4
@@ -272,7 +288,7 @@ train_data$pred_dt_prob <- predict(object = model_dt,train_data,type='prob')$Yes
 #Predictors for top layer models 
 install.packages("gbm")
 library("gbm")
-predictors_top<-c('pred_knn_prob','pred_rf_prob','pred_logi_prob','pred_dt_prob')
+predictors_top<-c('pred_knn_prob','pred_rf_prob','pred_dt_prob','pred_svm_prob' ,'pred_logi_prob')# Removing 'pred_logi_prob',
 model_glm<-train(train_data[,predictors_top],train_data[,'status'],method='glm',trControl=fitCtrl,tuneLength=3,na.action = na.omit)
 train_data$pred_status_avg<-predict(model_glm,train_data)
 count_corr <- sum(train_data$status == train_data$pred_status_avg)
@@ -288,6 +304,7 @@ test_data$pred_knn_prob <- predict(object = knn_model,newdata = test_data,type='
 test_data$pred_rf_prob <- predict(object = rf_model,test_data,type='prob')$Yes
 test_data$pred_logi_prob <- predict(object = logi_model,test_data,type='prob')$Yes
 test_data$pred_dt_prob <- predict(object = model_dt,test_data,type='prob')$Yes
+test_data$pred_svm_prob <- predict(object = svm_model,test_data,type='prob')$Yes
 prediction_classes = predict.train(object=model_glm, newdata=test_data, na.action=na.pass)
 #Performing consistency transformation
 levels(prediction_classes)[1] <- 0
